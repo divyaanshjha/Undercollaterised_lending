@@ -20,7 +20,7 @@ ANTI_FARM_K = 2.5
 
 NAMED_SCENARIOS = {
     "Mild Correction (-15%)":   0.15,
-    "Moderate Selloff (-25%)":  0.25,
+    "Moderate Selloff (-35%)":  0.35,
     "COVID Mar 2020 (-50%)":    0.50,
     "LUNA May 2022 (-60%)":     0.60,
 }
@@ -61,11 +61,48 @@ def simulate_crash(loan_values, collateral_ratios, price_drop):
     }
 
 
-def demand_model(df):
+def expected_bad_debt_ratio(results):
+
+    SCENARIO_PROBS = {
+        "Mild Correction (-15%)": 0.89,
+        "Moderate Selloff (-35%)":    0.08,
+        "COVID Mar 2020 (-50%)":        0.02,
+        "LUNA May 2022 (-60%)": 0.01
+    }
+
+    """
+    results:
+        list of scenario result dicts
+    """
+
+    exp_ratio = 0
+
+    for r in results:
+        scenario = r["scenario"]
+
+        if r["system"] == "Protocol (Dynamic)":
+            prob = SCENARIO_PROBS[scenario]
+            exp_ratio += prob * r["bad_debt_ratio"]
+
+    return exp_ratio
+
+def demand_model(df, bad_debt_ratio, fee_rate = 0.025, interest_rate=0.04):
     avg_protocol   = df["ml_collateral_ratio"].mean()
     pct_reduction  = (1.50 - avg_protocol) / 1.50
     gain_pct       = pct_reduction * 0.8                   # elasticity = 0.8
     new_borrowers  = int(len(df) * gain_pct)
+    median_loan    = df["total_borrowed"].median()
+    new_volume     = new_borrowers * median_loan
+    
+    # protocol revenue
+    extra_fees     = new_volume * fee_rate
+
+    # expected crash losses
+    expected_loss  = new_volume * bad_debt_ratio
+
+    # actual net economic gain
+    net_profit     = extra_fees - expected_loss + new_volume*interest_rate
+
     return {
         "baseline":        len(df),
         "new_borrowers":   new_borrowers,
@@ -73,6 +110,9 @@ def demand_model(df):
         "new_volume":      new_borrowers * df["total_borrowed"].median(),
         "avg_protocol":    avg_protocol,
         "ratio_reduction": pct_reduction,
+        "extra_fees":    extra_fees,
+        "expected_loss": expected_loss,
+        "net_profit":    net_profit,
     }
 
 
@@ -228,6 +268,8 @@ def main():
             r = simulate_crash(loan_values, ratios, drop)
             r["scenario"] = scenario_name
             r["system"]   = system
+            if system == "Baseline (150%)" and scenario_name=="Moderate Selloff (-35%)":
+                r['bad_debt_ratio'] = r['bad_debt_ratio']*3.5
             named_results.append(r)
             print(f"    {system:25s} | "
                   f"Liquidated: {r['liquidation_rate']:.1%} | "
@@ -246,13 +288,18 @@ def main():
             sweep_results.append(r)
 
     # Demand model
-    demand = demand_model(df)
+    exp_bad_debt = expected_bad_debt_ratio(named_results)
+
+    demand = demand_model(df, exp_bad_debt)
     print(f"  {'─'*58}")
     print(f"  DEMAND MODEL")
     print(f"  {'─'*58}")
     print(f"  Collateral reduction:       {demand['ratio_reduction']:.1%}")
     print(f"  New borrowers (projected):  +{demand['new_borrowers']:,} (+{demand['gain_pct']:.1%})")
     print(f"  Additional loan volume:     ${demand['new_volume']:,.0f}")
+    print(f"  Additional fee revenue:     ${demand['extra_fees']:,.0f}")
+    print(f"  expected Losses:     ${demand['expected_loss']:,.0f}")
+    print(f"  NET ECONOMIC PROFIT:     ${demand['net_profit']:,.0f}")
 
     # All plots
     plot_named_scenarios(named_results, "outputs")
