@@ -130,11 +130,11 @@ def compute_features(borrows: pd.DataFrame,
 
 def score_to_collateral_ratio(score: float) -> float:
     """
-    Maps reputation_score ∈ [0,1] → collateral ratio ∈ [1.05, 1.50].
+    Maps reputation_score ∈ [0,1] → collateral ratio ∈ [1.20, 1.50].
     Curve: 150% for unknown wallets, drops to 105% for perfect score.
     Linear interpolation — easy to argue and explain.
     """
-    min_ratio = 1.05   # best case: 105% (undercollateralised)
+    min_ratio = 1.20   # best case: 105% (undercollateralised)
     max_ratio = 1.50   # baseline: 150% (Aave standard)
     return max_ratio - score * (max_ratio - min_ratio)
 
