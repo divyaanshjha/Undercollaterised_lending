@@ -133,9 +133,6 @@ contract LendingPool {
         totalBorrowedUSD    += borrowUSD;
         totalCollateralETH  += requiredCollateralETH;
 
-        // Notify oracle of loan size (for anti-farming cap tracking)
-        oracle.recordLoan(msg.sender, borrowUSD);
-
         if (excessETH > 0) {
             (bool sent,) = msg.sender.call{value: excessETH}("");
             require(sent, "Pool: ETH refund failed");
@@ -171,6 +168,9 @@ contract LendingPool {
         // Return collateral minus fee
         (bool sent,) = msg.sender.call{value: returnETH}("");
         require(sent, "Pool: ETH transfer failed");
+
+        // Notify oracle of loan size (for anti-farming cap tracking)
+        oracle.recordLoan(msg.sender, borrowUSD);
 
         emit Repaid(msg.sender, pos.borrowedUSD, returnETH);
     }
