@@ -83,14 +83,18 @@ def compute_features(borrows: pd.DataFrame,
         luna_borrows = b[b["timestamp"] < LUNA_CRASH]
         luna_repays  = r[(r["timestamp"] >= LUNA_CRASH) &
                          (r["timestamp"] <= LUNA_CRASH + 30*86400)]
-        survived_luna = int(len(luna_borrows) > 0 and len(luna_repays) > 0
-                            and n_liquidations == 0)
-
-        covid_borrows = b[b["timestamp"] < COVID_CRASH]
-        covid_repays  = r[(r["timestamp"] >= COVID_CRASH) &
-                          (r["timestamp"] <= COVID_CRASH + 30*86400)]
-        survived_covid = int(len(covid_borrows) > 0 and len(covid_repays) > 0
-                             and n_liquidations == 0)
+        
+        LUNA_WINDOW_END = LUNA_CRASH + 30 * 86400
+        
+        luna_liquidations = liq[(liq['timestamp'] >= LUNA_CRASH) &(liq['timestamp'] <= LUNA_WINDOW_END)] 
+        
+        survived_luna = int(len(luna_borrows) > 0 and len(luna_repays) > 0 and len(luna_liquidations) == 0)
+        
+        COVID_WINDOW_END = COVID_CRASH + 30 * 86400
+        
+        covid_liquidations = liq[(liq['timestamp'] >= COVID_CRASH) & (liq['timestamp'] <= COVID_WINDOW_END)] 
+        
+        survived_covid = int(len(covid_borrows) > 0 and len(covid_repays) > 0 and len(covid_liquidations) == 0)
 
         # ── Label: was this wallet ever liquidated? ───────────────────────────
         # This is the binary target for the ML model
